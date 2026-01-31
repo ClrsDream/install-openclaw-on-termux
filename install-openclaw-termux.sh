@@ -1,4 +1,24 @@
 #!/bin/bash
+# ==========================================
+# Openclaw Termux Deployment Script v2.0
+# ==========================================
+#
+# Usage: curl -sL <script_url> | bash -s -- [options]
+#
+# Options:
+#   --help, -h       Show help information
+#   --verbose, -v    Enable verbose output (shows command execution details)
+#   --dry-run, -d    Dry run mode (simulate execution without making changes)
+#   --uninstall, -u  Uninstall Openclaw and clean up configurations
+#
+# Examples:
+#   curl -sL <script_url> | bash
+#   curl -sL <script_url> | bash -s -- --verbose
+#   curl -sL <script_url> | bash -s -- --dry-run
+#   curl -sL <script_url> | bash -s -- --uninstall
+#
+# ==========================================
+
 set -e
 set -o pipefail
 
@@ -222,12 +242,14 @@ setup_autostart() {
         fi
         cat << EOT >> "$BASHRC"
 # --- Openclaw Start ---
+# WARNING: This section contains your access token - keep ~/.bashrc secure
 export TERMUX_VERSION=1
 export TMPDIR=\$HOME/tmp
+export OPENCLAW_TOKEN=$TOKEN
 export PATH=\$NPM_BIN:\$PATH
 sshd 2>/dev/null
 termux-wake-lock 2>/dev/null
-alias ocr="pkill -9 node 2>/dev/null; tmux kill-session -t openclaw 2>/dev/null; sleep 1; tmux new -d -s openclaw; sleep 1; tmux send-keys -t openclaw \"export PATH=$NPM_BIN:$PATH TMPDIR=$HOME/tmp; openclaw gateway --bind lan --port $PORT --allow-unconfigured --token $TOKEN\" C-m"
+alias ocr="pkill -9 node 2>/dev/null; tmux kill-session -t openclaw 2>/dev/null; sleep 1; tmux new -d -s openclaw; sleep 1; tmux send-keys -t openclaw \"export PATH=$NPM_BIN:$PATH TMPDIR=$HOME/tmp; openclaw gateway --bind lan --port $PORT --allow-unconfigured\" C-m"
 alias oclog='tmux attach -t openclaw'
 alias ockill='pkill -9 node 2>/dev/null; tmux kill-session -t openclaw 2>/dev/null'
 # --- OpenClaw End ---
@@ -277,7 +299,7 @@ start_service() {
     sleep 1
     
     # 将输出重定向到一个临时文件，如果 tmux 崩了也能看到报错
-    tmux send-keys -t openclaw "export PATH=$NPM_BIN:$PATH TMPDIR=$HOME/tmp; openclaw gateway --bind lan --port $PORT --allow-unconfigured --token $TOKEN 2>&1 | tee $LOG_DIR/runtime.log" C-m
+    tmux send-keys -t openclaw "export PATH=$NPM_BIN:$PATH TMPDIR=$HOME/tmp; openclaw gateway --bind lan --port $PORT --allow-unconfigured 2>&1 | tee $LOG_DIR/runtime.log" C-m
     
     log "服务指令已发送"
     echo -e "${GREEN}[6/6] 部署指令发送完毕${NC}"
@@ -419,6 +441,6 @@ apply_patches
 setup_autostart
 activate_wakelock
 start_service
-echo -e "${GREEN}脚本执行完成！${NC}，执行 oclog 查看日志"
+echo -e "${GREEN}脚本执行完成！${NC}，token为：$TOKEN  执行 oclog 查看运行状态； ockill 停止服务；ocr 重启服务。"
 log "脚本执行完成"
 
