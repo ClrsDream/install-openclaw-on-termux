@@ -386,6 +386,9 @@ NPM_BIN="$NPM_GLOBAL/bin"
 LOG_DIR="$HOME/openclaw-logs"
 LOG_FILE="$LOG_DIR/install.log"
 
+# 创建日志目录（防止日志函数在目录不存在时报错）
+mkdir -p "$LOG_DIR" 2>/dev/null || true
+
 # 日志函数
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG_FILE"
