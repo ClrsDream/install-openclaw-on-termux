@@ -13,19 +13,32 @@ echo "[1/3] 创建目录..."
 mkdir -p "$LOG_DIR"
 mkdir -p "$HOME/tmp"
 
-# 2. 创建 /tmp 目录和符号链接
-echo "[2/3] 创建 /tmp 符号链接..."
-mkdir -p /tmp 2>/dev/null || true
-rm -rf /tmp/openclaw 2>/dev/null || true
-ln -sf "$LOG_DIR" /tmp/openclaw
+# 2. 搜索并修复所有包含 /tmp/openclaw 的文件
+echo "[2/3] 搜索并修复硬编码的 /tmp/openclaw 路径..."
 
-# 3. 应用补丁（如果 logger 文件存在）
-echo "[3/3] 应用 logger 补丁..."
-LOGGER_FILE="$BASE_DIR/dist/logging/logger.js"
-if [ -f "$LOGGER_FILE" ]; then
-    node -e "const fs = require('fs'); const file = '$LOGGER_FILE'; let c = fs.readFileSync(file, 'utf8'); c = c.replace(/\/tmp\/openclaw/g, process.env.HOME + '/openclaw-logs'); fs.writeFileSync(file, c);" && echo "✓ Logger 补丁应用成功"
+cd "$BASE_DIR"
+FILES_WITH_TMP=$(grep -rl "/tmp/openclaw" dist/ 2>/dev/null || true)
+
+if [ -n "$FILES_WITH_TMP" ]; then
+    echo "  找到需要修复的文件："
+    for file in $FILES_WITH_TMP; do
+        echo "    - $file"
+        node -e "const fs = require('fs'); const file = '$BASE_DIR/$file'; let c = fs.readFileSync(file, 'utf8'); c = c.replace(/\/tmp\/openclaw/g, process.env.HOME + '/openclaw-logs'); fs.writeFileSync(file, c);"
+    done
+    echo "  ✓ 所有文件修复完成"
 else
-    echo "⚠ Logger 文件不存在，跳过补丁"
+    echo "  ℹ 未找到需要修复的文件"
+fi
+
+# 3. 验证修复结果
+echo "[3/3] 验证修复结果..."
+REMAINING=$(grep -r "/tmp/openclaw" dist/ 2>/dev/null || true)
+if [ -n "$REMAINING" ]; then
+    echo "  ⚠ 警告：仍有文件包含 /tmp/openclaw"
+    echo "  受影响的文件："
+    echo "$REMAINING"
+else
+    echo "  ✓ 所有 /tmp/openclaw 路径已替换为 $HOME/openclaw-logs"
 fi
 
 echo ""

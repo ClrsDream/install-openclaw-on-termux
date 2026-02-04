@@ -170,26 +170,13 @@ configure_npm() {
     grep -qxF "export PATH=$NPM_BIN:$PATH" "$BASHRC" || echo "export PATH=$NPM_BIN:$PATH" >> "$BASHRC"
     export PATH="$NPM_BIN:$PATH"
 
-    # 在安装前创建必要的目录和符号链接（Termux 兼容性处理）
+    # 在安装前创建必要的目录（Termux 兼容性处理）
     log "创建 Termux 兼容性目录"
     mkdir -p "$LOG_DIR" "$HOME/tmp"
     if [ $? -ne 0 ]; then
         log "目录创建失败"
         echo -e "${RED}错误：目录创建失败${NC}"
         exit 1
-    fi
-
-    # 创建 /tmp 目录（如果不存在）并创建符号链接
-    if [ ! -d "/tmp" ]; then
-        log "/tmp 目录不存在，尝试创建"
-        mkdir -p /tmp 2>/dev/null || true
-    fi
-
-    # 创建 /tmp/openclaw 符号链接到 $LOG_DIR
-    if [ -d "/tmp" ]; then
-        log "创建 /tmp/openclaw 符号链接"
-        rm -rf /tmp/openclaw 2>/dev/null || true
-        ln -sf "$LOG_DIR" /tmp/openclaw 2>/dev/null || true
     fi
 
     # 检查并安装/更新 Openclaw
@@ -287,31 +274,34 @@ apply_patches() {
     log "开始应用补丁"
     echo -e "${YELLOW}[3/6] 正在应用 Android 兼容性补丁...${NC}"
 
-    # 确保 /tmp 目录和符号链接存在（防止更新后失效）
-    log "检查 /tmp 兼容性配置"
-    mkdir -p /tmp 2>/dev/null || true
-    if [ -d "/tmp" ]; then
-        rm -rf /tmp/openclaw 2>/dev/null || true
-        ln -sf "$LOG_DIR" /tmp/openclaw 2>/dev/null || true
+    # 修复所有包含 /tmp/openclaw 路径的文件
+    log "搜索并修复所有硬编码的 /tmp/openclaw 路径"
+    
+    # 在 openclaw 目录中搜索所有包含 /tmp/openclaw 的文件
+    cd "$BASE_DIR"
+    FILES_WITH_TMP=$(grep -rl "/tmp/openclaw" dist/ 2>/dev/null || true)
+    
+    if [ -n "$FILES_WITH_TMP" ]; then
+        log "找到需要修复的文件"
+        for file in $FILES_WITH_TMP; do
+            log "修复文件: $file"
+            node -e "const fs = require('fs'); const file = '$BASE_DIR/$file'; let c = fs.readFileSync(file, 'utf8'); c = c.replace(/\/tmp\/openclaw/g, process.env.HOME + '/openclaw-logs'); fs.writeFileSync(file, c);"
+        done
+        log "所有文件修复完成"
+    else
+        log "未找到需要修复的文件"
     fi
-
-    # 修复 Logger
-    LOGGER_FILE="$BASE_DIR/dist/logging/logger.js"
-    if [ -f "$LOGGER_FILE" ]; then
-        log "应用 Logger 补丁"
-        node -e "const fs = require('fs'); const file = '$LOGGER_FILE'; let c = fs.readFileSync(file, 'utf8'); c = c.replace(/\/tmp\/openclaw/g, process.env.HOME + '/openclaw-logs'); fs.writeFileSync(file, c);"
-        if [ $? -ne 0 ]; then
-            log "Logger 补丁应用失败"
-            echo -e "${RED}错误：Logger 补丁应用失败${NC}"
-            exit 1
-        fi
-        # 验证补丁是否生效
-        if grep -q "/tmp/openclaw" "$LOGGER_FILE"; then
-            log "Logger 补丁验证失败"
-            echo -e "${RED}错误：Logger 补丁未正确应用，请检查文件内容${NC}"
-            exit 1
-        fi
-        log "Logger 补丁应用成功"
+    
+    # 验证补丁是否生效
+    REMAINING=$(grep -r "/tmp/openclaw" dist/ 2>/dev/null || true)
+    if [ -n "$REMAINING" ]; then
+        log "补丁验证失败，仍有文件包含 /tmp/openclaw"
+        echo -e "${RED}警告：部分文件仍包含 /tmp/openclaw 路径${NC}"
+        echo -e "${YELLOW}受影响的文件：${NC}"
+        echo "$REMAINING"
+    else
+        log "补丁验证成功，所有路径已替换"
+        echo -e "${GREEN}✓ 所有 /tmp/openclaw 路径已替换为 $HOME/openclaw-logs${NC}"
     fi
 
     # 修复剪贴板
