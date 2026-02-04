@@ -227,7 +227,7 @@ configure_npm() {
                 if [ $FORCE_UPDATE -eq 1 ]; then
                     log "强制更新模式，直接更新"
                     echo -e "${YELLOW}正在更新 Openclaw...${NC}"
-                    run_cmd npm i -g openclaw
+                    run_cmd NODE_LLAMA_CPP_SKIP_DOWNLOAD=true npm i -g openclaw
                     if [ $? -ne 0 ]; then
                         log "Openclaw 更新失败"
                         echo -e "${RED}错误：Openclaw 更新失败${NC}"
@@ -242,7 +242,7 @@ configure_npm() {
                     if [ "$UPDATE_CHOICE" = "y" ] || [ "$UPDATE_CHOICE" = "Y" ]; then
                         log "开始更新 Openclaw"
                         echo -e "${YELLOW}正在更新 Openclaw...${NC}"
-                        run_cmd npm i -g openclaw
+                        run_cmd NODE_LLAMA_CPP_SKIP_DOWNLOAD=true npm i -g openclaw
                         if [ $? -ne 0 ]; then
                             log "Openclaw 更新失败"
                             echo -e "${RED}错误：Openclaw 更新失败${NC}"
@@ -264,7 +264,7 @@ configure_npm() {
         log "开始安装 Openclaw"
         echo -e "${YELLOW}正在安装 Openclaw...${NC}"
         # 安装 Openclaw (静默安装)
-        # 设置环境变量跳过 node-llama-cpp 编译（Termux 环境不支持）
+        # 设置环境变量跳过 node-llama-cpp 下载/编译（Termux 环境不支持）
         run_cmd NODE_LLAMA_CPP_SKIP_DOWNLOAD=true npm i -g openclaw
         if [ $? -ne 0 ]; then
             log "Openclaw 安装失败"
