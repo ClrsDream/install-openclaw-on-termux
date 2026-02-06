@@ -324,10 +324,22 @@ apply_patches() {
     fi
 }
 
+save_token() {
+    # Save token to file
+    log "保存 token 到文件"
+    echo -e "${YELLOW}正在保存 token 配置...${NC}"
+
+    # 将 token 写入 ~/.openclaw_token 文件（不添加换行符）
+    run_cmd printf "%s" "$TOKEN" > "$HOME/.openclaw_token"
+    run_cmd chmod 600 "$HOME/.openclaw_token"
+    log "Token 已保存到 ~/.openclaw_token"
+}
+
 setup_autostart() {
     # Configure autostart and aliases
     if [ "$AUTO_START" == "y" ]; then
         log "配置自启动"
+
         # 备份原 ~/.bashrc 文件
         run_cmd cp "$BASHRC" "$BASHRC.backup"
         run_cmd sed -i '/# --- Openclaw Start ---/,/# --- Openclaw End ---/d' "$BASHRC"
@@ -338,14 +350,35 @@ setup_autostart() {
         fi
         cat << EOT >> "$BASHRC"
 # --- Openclaw Start ---
-# WARNING: This section contains your access token - keep ~/.bashrc secure
 export TERMUX_VERSION=1
 export TMPDIR=\$HOME/tmp
-export OPENCLAW_GATEWAY_TOKEN=$TOKEN
+if [ -f "\$HOME/.openclaw_token" ]; then
+    export OPENCLAW_GATEWAY_TOKEN="\$(cat "\$HOME/.openclaw_token")"
+else
+    echo "警告: ~/.openclaw_token 文件不存在"
+fi
 export PATH=\$NPM_BIN:\$PATH
 sshd 2>/dev/null
 termux-wake-lock 2>/dev/null
-alias ocr="pkill -9 -f 'openclaw' 2>/dev/null; tmux kill-session -t openclaw 2>/dev/null; sleep 1; tmux new -d -s openclaw; sleep 1; tmux send-keys -t openclaw \"export PATH=$NPM_BIN:\$PATH TMPDIR=\$HOME/tmp; export OPENCLAW_GATEWAY_TOKEN=$TOKEN; openclaw gateway --bind lan --port $PORT --token \\\$OPENCLAW_GATEWAY_TOKEN --allow-unconfigured\" C-m"
+# 重启 openclaw 的函数
+ocr() {
+    pkill -9 -f 'openclaw' 2>/dev/null
+    tmux kill-session -t openclaw 2>/dev/null
+    sleep 1
+    # 从文件读取 token（如果存在）
+    if [ -f "\$HOME/.openclaw_token" ]; then
+        # 使用 base64 编码避免特殊字符问题
+        TOKEN="\$(cat "\$HOME/.openclaw_token")"
+        ENCODED_TOKEN="\$(printf '%s' "\$TOKEN" | base64)"
+        # 创建 tmux 会话
+        tmux new -d -s openclaw
+        sleep 1
+        # 发送命令：解码 token 并启动 openclaw
+        tmux send-keys -t openclaw "export PATH=$NPM_BIN:\$PATH TMPDIR=\$HOME/tmp; export OPENCLAW_GATEWAY_TOKEN=\$(printf '%s' '$ENCODED_TOKEN' | base64 -d); openclaw gateway --bind lan --port $PORT --token \\\$OPENCLAW_GATEWAY_TOKEN --allow-unconfigured" C-m
+    else
+        echo "错误: ~/.openclaw_token 文件不存在，无法启动 openclaw"
+    fi
+}
 alias oclog='tmux attach -t openclaw'
 alias ockill='pkill -9 -f "openclaw" 2>/dev/null; tmux kill-session -t openclaw 2>/dev/null'
 # --- OpenClaw End ---
@@ -465,6 +498,8 @@ uninstall_openclaw() {
     echo -e "${YELLOW}删除日志和配置目录...${NC}"
     run_cmd rm -rf "$LOG_DIR" 2>/dev/null || true
     run_cmd rm -rf "$NPM_GLOBAL" 2>/dev/null || true
+    # 删除 token 文件
+    run_cmd rm -f "$HOME/.openclaw_token" 2>/dev/null || true
     log "日志和配置目录已删除"
 
     # 删除更新标志
@@ -543,15 +578,27 @@ if [ -f "$NPM_BIN/openclaw" ] || grep -q "# --- Openclaw Start ---" "$BASHRC" 2>
     IS_REINSTALL=1
     echo -e "${YELLOW}检测到已安装 Openclaw，正在读取现有配置...${NC}"
 
-    # 尝试从当前环境变量读取 token
-    if [ -n "$OPENCLAW_GATEWAY_TOKEN" ]; then
-        EXISTING_TOKEN="$OPENCLAW_GATEWAY_TOKEN"
-        log "从环境变量读取到 Token"
+    # 尝试从 ~/.openclaw_token 文件读取 token（优先读取）
+    if [ -f "$HOME/.openclaw_token" ]; then
+        EXISTING_TOKEN=$(cat "$HOME/.openclaw_token")
+        log "从 ~/.openclaw_token 读取到 Token"
     else
-        # 尝试从 ~/.bashrc 读取 token
-        EXISTING_TOKEN=$(grep "export OPENCLAW_GATEWAY_TOKEN=" "$BASHRC" 2>/dev/null | sed 's/.*export OPENCLAW_GATEWAY_TOKEN=\(.*\).*/\1/')
-        if [ -n "$EXISTING_TOKEN" ]; then
-            log "从 ~/.bashrc 读取到 Token"
+        # 尝试从当前环境变量读取 token
+        if [ -n "$OPENCLAW_GATEWAY_TOKEN" ]; then
+            EXISTING_TOKEN="$OPENCLAW_GATEWAY_TOKEN"
+            log "从环境变量读取到 Token"
+        else
+            # 尝试从 ~/.bashrc 读取 token（兼容旧版本）
+            EXISTING_TOKEN=$(grep "export OPENCLAW_GATEWAY_TOKEN=" "$BASHRC" 2>/dev/null | sed 's/.*export OPENCLAW_GATEWAY_TOKEN=\(.*\).*/\1/')
+            if [ -n "$EXISTING_TOKEN" ]; then
+                # 检查是否是命令替换形式，如果是则跳过（因为没有文件）
+                if [[ "$EXISTING_TOKEN" == *"\$"* ]] || [[ "$EXISTING_TOKEN" == *"$(cat"* ]]; then
+                    EXISTING_TOKEN=""
+                    log "检测到 ~/.bashrc 中的 token 为命令替换形式，但 ~/.openclaw_token 文件不存在"
+                else
+                    log "从 ~/.bashrc 读取到 Token（旧版本配置）"
+                fi
+            fi
         fi
     fi
 
@@ -634,6 +681,7 @@ log "脚本开始执行，用户配置: 端口=$PORT, Token=$TOKEN, 自启动=$A
 check_deps
 configure_npm
 apply_patches
+save_token
 setup_autostart
 activate_wakelock
 start_service
