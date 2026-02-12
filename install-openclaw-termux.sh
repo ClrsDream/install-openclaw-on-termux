@@ -325,41 +325,49 @@ apply_patches() {
 }
 
 setup_autostart() {
-    # Configure autostart and aliases
+    # Configure aliases and optional autostart
+    log "配置环境变量和别名"
+    # 备份原 ~/.bashrc 文件
+    run_cmd cp "$BASHRC" "$BASHRC.backup"
+    # 清理旧配置块（兼容旧版大小写不一致的标记）
+    run_cmd sed -i '/# --- [Oo]pen[Cc]law Start ---/,/# --- [Oo]pen[Cc]law End ---/d' "$BASHRC"
+    if [ $? -ne 0 ]; then
+        log "bashrc 修改失败"
+        echo -e "${RED}错误：bashrc 修改失败${NC}"
+        exit 1
+    fi
+
+    # 构建 autostart 部分（仅当用户选择自启动时才包含 sshd/wake-lock）
+    AUTOSTART_BLOCK=""
     if [ "$AUTO_START" == "y" ]; then
         log "配置自启动"
-        # 备份原 ~/.bashrc 文件
-        run_cmd cp "$BASHRC" "$BASHRC.backup"
-        run_cmd sed -i '/# --- Openclaw Start ---/,/# --- Openclaw End ---/d' "$BASHRC"
-        if [ $? -ne 0 ]; then
-            log "bashrc 修改失败"
-            echo -e "${RED}错误：bashrc 修改失败${NC}"
-            exit 1
-        fi
-        cat << EOT >> "$BASHRC"
-# --- Openclaw Start ---
+        AUTOSTART_BLOCK="sshd 2>/dev/null
+termux-wake-lock 2>/dev/null"
+    else
+        log "跳过自启动（仅写入别名和环境变量）"
+    fi
+
+    # 写入配置块（aliases 始终写入，$NPM_BIN 在写入时展开为实际路径）
+    cat >> "$BASHRC" <<EOT
+# --- OpenClaw Start ---
 # WARNING: This section contains your access token - keep ~/.bashrc secure
 export TERMUX_VERSION=1
 export TMPDIR=\$HOME/tmp
 export OPENCLAW_GATEWAY_TOKEN=$TOKEN
-export PATH=\$NPM_BIN:\$PATH
-sshd 2>/dev/null
-termux-wake-lock 2>/dev/null
+export PATH=$NPM_BIN:\$PATH
+${AUTOSTART_BLOCK}
 alias ocr="pkill -9 -f 'openclaw' 2>/dev/null; tmux kill-session -t openclaw 2>/dev/null; sleep 1; tmux new -d -s openclaw; sleep 1; tmux send-keys -t openclaw \"export PATH=$NPM_BIN:\$PATH TMPDIR=\$HOME/tmp; export OPENCLAW_GATEWAY_TOKEN=$TOKEN; openclaw gateway --bind lan --port $PORT --token \\\$OPENCLAW_GATEWAY_TOKEN --allow-unconfigured\" C-m"
 alias oclog='tmux attach -t openclaw'
 alias ockill='pkill -9 -f "openclaw" 2>/dev/null; tmux kill-session -t openclaw 2>/dev/null'
 # --- OpenClaw End ---
 EOT
 
-        source "$BASHRC"
-        if [ $? -ne 0 ]; then
-            log "bashrc 加载警告"
-            echo -e "${YELLOW}警告：bashrc 加载失败，可能影响别名${NC}"
-        fi
-        log "自启动配置完成"
-    else
-        log "跳过自启动配置"
+    source "$BASHRC"
+    if [ $? -ne 0 ]; then
+        log "bashrc 加载警告"
+        echo -e "${YELLOW}警告：bashrc 加载失败，可能影响别名${NC}"
     fi
+    log "别名和环境变量配置完成"
 }
 
 activate_wakelock() {
@@ -444,7 +452,7 @@ uninstall_openclaw() {
 
     # 删除别名和配置
     echo -e "${YELLOW}删除别名和配置...${NC}"
-    run_cmd sed -i '/# --- Openclaw Start ---/,/# --- Openclaw End ---/d' "$BASHRC"
+    run_cmd sed -i '/# --- [Oo]pen[Cc]law Start ---/,/# --- [Oo]pen[Cc]law End ---/d' "$BASHRC"
     run_cmd sed -i '/export PATH=.*\.npm-global\/bin/d' "$BASHRC"
     log "别名和配置已删除"
 
