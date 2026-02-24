@@ -112,7 +112,7 @@ check_deps() {
     log "开始检查基础环境"
     echo -e "${YELLOW}[1/6] 正在检查基础运行环境...${NC}"
 
-    # 检查是否需要更新 pkg（每天只执行一次）
+    # 检查是否需要更新 pkg
     UPDATE_FLAG="$HOME/.pkg_last_update"
     if [ ! -f "$UPDATE_FLAG" ] || [ $(($(date +%s) - $(stat -c %Y "$UPDATE_FLAG" 2>/dev/null || echo 0))) -gt 86400 ]; then
         log "执行 pkg update"
@@ -131,12 +131,12 @@ check_deps() {
     fi
 
     # 定义需要的基础包
-    DEPS=("nodejs" "git" "openssh" "tmux" "termux-api" "termux-tools" "cmake" "python" "golang" "which")
+    DEPS=("nodejs-lts" "git" "openssh" "tmux" "termux-api" "termux-tools" "cmake" "python" "golang" "which")
     MISSING_DEPS=()
 
     for dep in "${DEPS[@]}"; do
         cmd=$dep
-        if [ "$dep" = "nodejs" ]; then cmd="node"; fi
+        if [ "$dep" = "nodejs-lts" ]; then cmd="node"; fi
         if ! command -v $cmd &> /dev/null; then
             MISSING_DEPS+=($dep)
         fi
