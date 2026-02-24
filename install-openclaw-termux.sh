@@ -142,6 +142,29 @@ check_deps() {
         fi
     done
 
+    # 先安装缺失的依赖（包括 nodejs），再做版本检查
+    if [ ${#MISSING_DEPS[@]} -ne 0 ]; then
+        log "缺失依赖: ${MISSING_DEPS[*]}"
+        echo -e "${YELLOW}检查可能的组件缺失: ${MISSING_DEPS[*]}${NC}"
+        run_cmd pkg upgrade -y
+        if [ $? -ne 0 ]; then
+            log "pkg upgrade 失败"
+            echo -e "${RED}错误：pkg 升级失败${NC}"
+            exit 1
+        fi
+        run_cmd pkg install ${MISSING_DEPS[*]} -y
+        if [ $? -ne 0 ]; then
+            log "依赖安装失败"
+            echo -e "${RED}错误：依赖安装失败${NC}"
+            exit 1
+        fi
+        log "依赖安装完成"
+    else
+        log "所有依赖已安装"
+        echo -e "${GREEN}✅ 基础环境已就绪${NC}"
+    fi
+
+    # 依赖安装完毕后，显示版本信息
     log "Node.js 版本: $(node --version 2>/dev/null || echo '未知')"
     echo -e "${BLUE}Node.js 版本: $(node -v)${NC}"
     echo -e "${BLUE}NPM 版本: $(npm -v)${NC}" 
@@ -210,27 +233,6 @@ check_deps() {
         log "NPM 镜像设置失败"
         echo -e "${RED}错误：NPM 镜像设置失败${NC}"
         exit 1
-    fi
-
-    if [ ${#MISSING_DEPS[@]} -ne 0 ]; then
-        log "缺失依赖: ${MISSING_DEPS[*]}"
-        echo -e "${YELLOW}检查可能的组件缺失: ${MISSING_DEPS[*]}${NC}"
-        run_cmd pkg upgrade -y
-        if [ $? -ne 0 ]; then
-            log "pkg upgrade 失败"
-            echo -e "${RED}错误：pkg 升级失败${NC}"
-            exit 1
-        fi
-        run_cmd pkg install ${MISSING_DEPS[*]} -y
-        if [ $? -ne 0 ]; then
-            log "依赖安装失败"
-            echo -e "${RED}错误：依赖安装失败${NC}"
-            exit 1
-        fi
-        log "依赖安装完成"
-    else
-        log "所有依赖已安装"
-        echo -e "${GREEN}✅ 基础环境已就绪${NC}"
     fi
 }
 
