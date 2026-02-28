@@ -12,6 +12,23 @@
 
 [更多预览图](https://mp.weixin.qq.com/s/KASWkkuD2-Q5f22FDQ7bNA)
 
+## nanobot Termux 安装脚本（附加）
+
+本仓库额外提供 nanobot（HKUDS/nanobot）的 Termux 安装脚本：[install-nanobot-termux.sh](file:///e:/Github/install-openclaw-on-termux/install-nanobot-termux.sh)。
+
+```bash
+bash install-nanobot-termux.sh
+```
+
+安装后建议：
+- 初始化：`nanobot onboard`
+- 配置：编辑 `~/.nanobot/config.json` 写入 LLM Provider 的 API Key（例如 OpenRouter）
+- 查看状态：`nbstatus`
+
+可选能力：
+- WhatsApp 通道：安装时加 `--with-node`（Node.js ≥ 18）
+- 后台运行 gateway：安装时加 `--with-tmux --start-gateway`（使用 tmux，会写入便捷别名）
+
 ## 📖 目录
 
 - [项目简介](#项目简介)
