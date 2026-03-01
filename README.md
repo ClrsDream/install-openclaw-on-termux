@@ -29,6 +29,10 @@ bash install-nanobot-termux.sh
 - WhatsApp 通道：安装时加 `--with-node`（Node.js ≥ 18）
 - 后台运行 gateway：安装时加 `--with-tmux --start-gateway`（使用 tmux，会写入便捷别名）
 
+Shell 注入说明：
+- 脚本会在 `~/.bashrc` / `~/.profile`（以及存在时的 `~/.zshrc`）写入一段块状配置，标记为 `# --- Nanobot Start ---` 到 `# --- Nanobot End ---`
+- 需要生效时：执行 `source ~/.bashrc`（或重开 Termux）；卸载时会自动移除该块
+
 ## 📖 目录
 
 - [项目简介](#项目简介)

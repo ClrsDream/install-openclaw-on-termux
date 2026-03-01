@@ -58,6 +58,8 @@ else
 fi
 
 BASHRC="$HOME/.bashrc"
+PROFILE="$HOME/.profile"
+ZSHRC="$HOME/.zshrc"
 VENV_DIR="$HOME/.nanobot-venv"
 LOG_DIR="$HOME/nanobot-logs"
 LOG_FILE="$LOG_DIR/install.log"
@@ -163,11 +165,17 @@ pip_install_nanobot() {
     fi
 }
 
-inject_shell() {
+inject_shell_file() {
+    local target="$1"
+    if [ ! -f "$target" ]; then
+        run_cmd touch "$target"
+    fi
+
     local tmp
     tmp="$(mktemp)"
-    cp "$BASHRC" "$tmp"
+    cp "$target" "$tmp"
 
+    sed -i '/# --- [Nn]anobot Start ---/,/# --- [Nn]anobot End ---/d' "$tmp" || true
     sed -i '/\.nanobot-venv\/bin/d' "$tmp" || true
     sed -i '/alias nb=/d' "$tmp" || true
     sed -i '/alias nbstatus=/d' "$tmp" || true
@@ -176,16 +184,26 @@ inject_shell() {
     sed -i '/alias nbkill=/d' "$tmp" || true
 
     cat >> "$tmp" <<EOT
+# --- Nanobot Start ---
 export PATH="$VENV_DIR/bin:\$PATH"
 alias nb="nanobot"
 alias nbstatus="nanobot status"
 alias nbgw="tmux new -d -s nanobot 'export TMPDIR=\$HOME/tmp; mkdir -p \$TMPDIR; nanobot gateway 2>&1 | tee $LOG_DIR/gateway.log'"
 alias nblog="tmux attach -t nanobot"
 alias nbkill="tmux kill-session -t nanobot 2>/dev/null || true; pkill -f 'nanobot gateway' 2>/dev/null || true"
+# --- Nanobot End ---
 EOT
 
-    run_cmd cp "$tmp" "$BASHRC"
+    run_cmd cp "$tmp" "$target"
     rm -f "$tmp" 2>/dev/null || true
+}
+
+inject_shell() {
+    inject_shell_file "$BASHRC"
+    inject_shell_file "$PROFILE"
+    if [ -n "${ZSH_VERSION:-}" ] || [ -f "$ZSHRC" ]; then
+        inject_shell_file "$ZSHRC"
+    fi
 }
 
 start_gateway_tmux() {
@@ -211,19 +229,22 @@ uninstall_nanobot() {
     run_cmd tmux kill-session -t nanobot 2>/dev/null || true
     run_cmd pkill -f "nanobot gateway" 2>/dev/null || true
 
-    if [ -f "$BASHRC" ]; then
-        local tmp
-        tmp="$(mktemp)"
-        cp "$BASHRC" "$tmp"
-        sed -i '/\.nanobot-venv\/bin/d' "$tmp" || true
-        sed -i '/alias nb=/d' "$tmp" || true
-        sed -i '/alias nbstatus=/d' "$tmp" || true
-        sed -i '/alias nbgw=/d' "$tmp" || true
-        sed -i '/alias nblog=/d' "$tmp" || true
-        sed -i '/alias nbkill=/d' "$tmp" || true
-        run_cmd cp "$tmp" "$BASHRC"
-        rm -f "$tmp" 2>/dev/null || true
-    fi
+    for rc in "$BASHRC" "$PROFILE" "$ZSHRC"; do
+        if [ -f "$rc" ]; then
+            local tmp
+            tmp="$(mktemp)"
+            cp "$rc" "$tmp"
+            sed -i '/# --- [Nn]anobot Start ---/,/# --- [Nn]anobot End ---/d' "$tmp" || true
+            sed -i '/\.nanobot-venv\/bin/d' "$tmp" || true
+            sed -i '/alias nb=/d' "$tmp" || true
+            sed -i '/alias nbstatus=/d' "$tmp" || true
+            sed -i '/alias nbgw=/d' "$tmp" || true
+            sed -i '/alias nblog=/d' "$tmp" || true
+            sed -i '/alias nbkill=/d' "$tmp" || true
+            run_cmd cp "$tmp" "$rc"
+            rm -f "$tmp" 2>/dev/null || true
+        fi
+    done
 
     if [ -d "$VENV_DIR" ]; then
         run_cmd rm -rf "$VENV_DIR"
@@ -258,7 +279,16 @@ inject_shell
 
 echo -e "${GREEN}✅ nanobot 已安装${NC}"
 echo -e "${BLUE}版本信息:${NC} $("$VENV_DIR/bin/nanobot" --version 2>/dev/null || echo unknown)"
-echo -e "${YELLOW}下一步：执行 nanobot onboard 初始化，再编辑 ~/.nanobot/config.json 填入 API Key${NC}"
+if [ -n "${BASH_VERSION:-}" ] && [ -f "$BASHRC" ] && [ $DRY_RUN -eq 0 ]; then
+    source "$BASHRC" 2>/dev/null || true
+fi
+
+if command -v nanobot >/dev/null 2>&1; then
+    echo -e "${YELLOW}下一步：执行 nanobot onboard 初始化，再编辑 ~/.nanobot/config.json 填入 API Key${NC}"
+else
+    echo -e "${YELLOW}提示：当前终端尚未加载 PATH，请执行：source ~/.bashrc（或重开 Termux）${NC}"
+    echo -e "${YELLOW}也可以直接运行：$VENV_DIR/bin/nanobot onboard${NC}"
+fi
 
 if [ $START_GATEWAY -eq 1 ]; then
     echo -e "${YELLOW}正在后台启动 nanobot gateway（tmux 会话: nanobot）...${NC}"
