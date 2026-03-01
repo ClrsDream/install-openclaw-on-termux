@@ -138,6 +138,17 @@ pip_install_nanobot() {
     export TMPDIR="${TMPDIR:-$HOME/tmp}"
     mkdir -p "$TMPDIR" 2>/dev/null || true
 
+    if [ -z "${ANDROID_API_LEVEL:-}" ]; then
+        ANDROID_API_LEVEL=""
+        if command -v getprop >/dev/null 2>&1; then
+            ANDROID_API_LEVEL="$(getprop ro.build.version.sdk 2>/dev/null || true)"
+        fi
+        if [ -z "$ANDROID_API_LEVEL" ]; then
+            ANDROID_API_LEVEL="28"
+        fi
+        export ANDROID_API_LEVEL
+    fi
+
     export CFLAGS="${CFLAGS:- -O2}"
     export LDFLAGS="${LDFLAGS:- -L$PREFIX/lib}"
     export CPPFLAGS="${CPPFLAGS:- -I$PREFIX/include}"
