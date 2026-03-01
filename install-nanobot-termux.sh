@@ -92,7 +92,7 @@ ensure_pkg_fresh() {
 
 ensure_deps() {
     ensure_pkg_fresh
-    local deps=("python" "git" "clang" "make" "pkg-config" "openssl" "libffi" "zlib" "libxml2" "libxslt")
+    local deps=("python" "git" "clang" "make" "cmake" "pkg-config" "rust" "openssl" "libffi" "zlib" "libxml2" "libxslt")
     if [ $WITH_NODE -eq 1 ]; then
         deps+=("nodejs-lts")
     fi
@@ -254,4 +254,3 @@ if [ $START_GATEWAY -eq 1 ]; then
     start_gateway_tmux
     echo -e "${GREEN}✅ gateway 已启动：用 nblog 查看，用 nbkill 停止${NC}"
 fi
-
